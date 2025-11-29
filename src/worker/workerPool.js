@@ -51,7 +51,8 @@ async function start() {
                 runningBots = await botsModel.findByStatus('running');
             } else {
                 const all = await botsModel.findAll();
-                runningBots = (all || []).filter(b => b.status === 'running');
+                // runningBots = (all || []).filter(b => b.status === 'running');
+                runningBots = (all || []).filter(b => b && String(b.status) === 'running');
             }
         } catch (errInner) {
             console.error('[WORKER] Failed to load running bots via model, falling back to empty list', errInner);

@@ -25,6 +25,7 @@ CREATE TABLE IF NOT EXISTS bots (
   closed_at TIMESTAMPTZ,
   entries JSONB DEFAULT '[]'::jsonb -- array of entry objects {price,amount,ts}
 );
+ALTER TABLE bots ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
 
 CREATE INDEX IF NOT EXISTS bots_user_id_idx ON bots(user_id);
 CREATE INDEX IF NOT EXISTS bots_status_idx ON bots(status);

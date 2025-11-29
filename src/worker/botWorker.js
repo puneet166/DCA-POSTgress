@@ -11,6 +11,7 @@ const RedisLock = require('../lib/lock');
 const IORedis = require('ioredis');
 const { enqueueBotTick, botQueue } = require('./queue');
 const { logBot } = require('../lib/botLogger');
+const { enqueueBotDelete } = require('./queue'); 
 
 const botsModel = require('../models/bots');
 const usersModel = require('../models/users');
@@ -43,6 +44,8 @@ class BotWorker {
         const { name, data } = job;
         if (name === 'start-bot') return this.startBot(data.botId);
         if (name === 'bot-tick') return this.tickBot(data.botId);
+        if (name === 'delete-bot') return this.deleteBot(data.botId);
+
         return;
     }
 
@@ -295,6 +298,126 @@ class BotWorker {
             }
         }
     }
+
+async deleteBot(botId) {
+    console.log("deleteBot start:", botId);
+    const lockKey = `bot-lock:${botId}`;
+
+    // acquire lock so delete does not conflict with tick
+    const token = await lock.acquire(lockKey, LOCK_TTL_MS, LOCK_WAIT_MS);
+    if (!token) {
+        console.log(`deleteBot: Could not acquire lock, re-enqueueing`);
+        setTimeout(() => enqueueBotDelete(botId).catch(console.error), 500 + Math.random() * 500);
+        return;
+    }
+
+    // keep renewing lock while we work
+    let renewed = setInterval(() => {
+        lock.renew(lockKey, token, LOCK_TTL_MS).catch(console.error);
+    }, Math.max(LOCK_TTL_MS - LOCK_RENEW_THRESHOLD_MS, 1000));
+
+    try {
+        await logBot(botId, 'delete_started', 'info');
+
+        // reload bot inside lock
+        const bot = await botsModel.findById(botId);
+        if (!bot) {
+            console.warn(`deleteBot: bot ${botId} not found`);
+            return;
+        }
+
+        // mark as deleting (so UI/other code know)
+        try {
+            await botsModel.updatePartial(botId, { status: 'deleting', updated_at: new Date() });
+        } catch (err) {
+            console.warn('deleteBot: could not set status deleting', err);
+        }
+
+        // compute position size from entries
+        const entries = bot.entries || [];
+        const totalAmount = entries.reduce((sum, e) => sum + Number(e.amount || 0), 0);
+
+        // fetch the user properly using Postgres model (not Mongo)
+        const userId = bot.user_id || bot.userId || bot.user;
+        const user = userId ? await usersModel.findById(userId) : null;
+
+        // If we have an open position and a valid user, attempt to close it on exchange
+        if (totalAmount > 0 && user) {
+            const adapter = new ExchangeAdapter(user.api_key || user.apiKey, user.api_secret || user.apiSecret, user.exchange || 'bybit');
+            const exchangeKey = adapter.exchangeKey;
+
+            const got = await limiter.acquire(exchangeKey, 1, Number(process.env.RATE_LIMIT_ACQUIRE_MS || 5000));
+            if (got) {
+                try {
+                    const sellParams = {
+                        symbol: bot.pair,
+                        side: 'sell',
+                        type: 'market',
+                        amount: totalAmount
+                    };
+                    const placed = await adapter.createOrder(sellParams);
+                    // persist sell order
+                    try {
+                        await botOrders.insertOrder({
+                            botId,
+                            orderId: placed.id || null,
+                            side: 'sell',
+                            amount: placed.filled || totalAmount,
+                            price: placed.price || placed.average || null,
+                            raw: placed,
+                            exitType: 'manual_delete',
+                            reason: 'manual delete - force close',
+                            createdAt: new Date()
+                        });
+                    } catch (errPersist) {
+                        console.error('deleteBot: failed to persist delete sell order', errPersist);
+                    }
+
+                    await logBot(botId, 'delete_sell_placed', 'info', { placed });
+                } catch (errSell) {
+                    console.error('deleteBot: sell during delete failed', errSell && (errSell.message || errSell));
+                    await logBot(botId, 'delete_sell_failed', 'error', { error: errSell && (errSell.message || String(errSell)) });
+                } finally {
+                    await limiter.release(exchangeKey, 1).catch(e => console.error('deleteBot: limiter.release failed', e));
+                }
+            } else {
+                console.warn(`deleteBot: rate limiter prevented sell for ${botId}`);
+                await logBot(botId, 'rate_limit_prevented_delete_sell', 'warn');
+            }
+        } else {
+            console.debug(`deleteBot: nothing to sell or no user found for ${botId}`);
+        }
+
+        // remove bot tick job (best-effort)
+        try {
+            await botQueue.remove(`tick:${botId}`);
+            console.log(`deleteBot: removed tick job tick:${botId}`);
+        } catch (err) {
+            console.warn('deleteBot: remove tick failed', err);
+        }
+
+        // soft delete the bot (ensure this always runs when we've reached here)
+        try {
+            await botsModel.markDeleted(botId);
+            await logBot(botId, 'bot_deleted', 'info');
+            console.log(`deleteBot: bot ${botId} marked deleted`);
+        } catch (err) {
+            console.error('deleteBot: markDeleted failed', err);
+            await logBot(botId, 'bot_deleted_failed', 'error', { error: err && (err.message || String(err)) });
+        }
+
+    } finally {
+        clearInterval(renewed);
+        try {
+            await lock.release(lockKey, token);
+        } catch (err) {
+            console.error('deleteBot: lock release failed', err);
+        }
+    }
+}
+
+
+
 }
 
 module.exports = BotWorker;

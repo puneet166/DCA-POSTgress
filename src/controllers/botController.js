@@ -1,19 +1,19 @@
 // src/controllers/botController.js
 const { Router } = require('express');
 const { validateBotPayload } = require('../lib/validator');
-const { enqueueBotCreate, enqueueBotTick, botQueue } = require('../worker/queue');
+const { enqueueBotCreate, enqueueBotTick, botQueue, enqueueBotDelete } = require('../worker/queue');
 const { logBot } = require('../lib/botLogger');
 const { v4: uuidv4 } = require('uuid');
 
 const botsModel = require('../models/bots');
 
-function BotController(){
+function BotController() {
   const r = Router();
 
   // Create bot
-  r.post('/', async (req,res) => {
+  r.post('/', async (req, res) => {
     const payload = req.body;
-    if(!validateBotPayload(payload)) return res.status(400).json({error:'invalid payload'});
+    if (!validateBotPayload(payload)) return res.status(400).json({ error: 'invalid payload' });
     const id = uuidv4();
     const bot = {
       id,
@@ -48,10 +48,10 @@ function BotController(){
   });
 
   // Get bot by id
-  r.get('/:id', async (req,res)=>{
+  r.get('/:id', async (req, res) => {
     try {
       const bot = await botsModel.findById(req.params.id);
-      if(!bot) return res.status(404).send('not found');
+      if (!bot) return res.status(404).send('not found');
       res.json(bot);
     } catch (err) {
       console.error('get bot error', err);
@@ -60,7 +60,7 @@ function BotController(){
   });
 
   // List bots
-  r.get('/', async (req,res) => {
+  r.get('/', async (req, res) => {
     try {
       const bots = await botsModel.findAll();
       res.json(bots);
@@ -71,13 +71,13 @@ function BotController(){
   });
 
   // Partial update (config)
-  r.patch('/:id', async (req,res) => {
+  r.patch('/:id', async (req, res) => {
     try {
       const update = {};
-      if(req.body.config) update.config = req.body.config;
-      if(Object.keys(update).length === 0) return res.status(400).json({ error: 'nothing to update' });
+      if (req.body.config) update.config = req.body.config;
+      if (Object.keys(update).length === 0) return res.status(400).json({ error: 'nothing to update' });
       const bot = await botsModel.updatePartial(req.params.id, update);
-      if(!bot) return res.status(404).json({ error: 'not found' });
+      if (!bot) return res.status(404).json({ error: 'not found' });
       res.json(bot);
     } catch (err) {
       console.error('patch bot error', err);
@@ -90,6 +90,12 @@ function BotController(){
     try {
       const bot = await botsModel.findById(req.params.id);
       if (!bot) return res.status(404).send('not found');
+      console.log("-------------line no 93---------",bot.status)
+      if (bot.status === 'deleted') {
+        return res.status(400).json({
+          error: "This bot has been deleted and cannot be restarted."
+        });
+      }
 
       await botsModel.setStatus(req.params.id, 'running');
 
@@ -104,6 +110,22 @@ function BotController(){
     } catch (err) {
       console.error('start bot error', err);
       res.status(500).json({ error: 'internal error' });
+    }
+  });
+
+  r.delete('/:id', async (req, res) => {
+    const botId = req.params.id;
+    const bot = await botsModel.findById(botId);
+    if (!bot) return res.status(404).json({ error: 'not found' });
+
+    try {
+      await enqueueBotDelete(botId);
+      // mark as in-progress so UI knows
+      await botsModel.updatePartial(botId, { status: 'deleting', updated_at: new Date() });
+      return res.status(202).json({ ok: true, message: 'Delete job enqueued' });
+    } catch (err) {
+      console.error('enqueue delete failed', err);
+      return res.status(500).json({ error: 'internal error' });
     }
   });
 
