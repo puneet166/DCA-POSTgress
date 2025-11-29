@@ -1,0 +1,26 @@
+{
+  "name": "dca-bot-js",
+  "version": "1.0.0",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "worker": "node src/worker/workerPool.js",
+    "dev": "nodemon --watch src --exec node src/index.js"
+  },
+  "dependencies": {
+    "ajv": "^8.12.0",
+    "body-parser": "^1.20.2",
+    "bullmq": "^1.91.1",
+    "ccxt": "^3.0.70",
+    "crypto-js": "^4.1.1",
+    "dotenv": "^16.0.3",
+    "express": "^4.18.2",
+    "ioredis": "^5.8.2",
+    "mongodb": "^5.8.0",
+    "mongoose": "^8.20.1",
+    "pg": "^8.16.3",
+    "socket.io": "^4.8.1",
+    "uuid": "^9.0.0",
+    "winston": "^3.8.2"
+  }
+}
