@@ -30,22 +30,46 @@ async function findAll() {
  * updatePartial - only sets provided fields (config, status, closed_at, etc).
  * fields param: object of column -> value
  */
-async function updatePartial(id, fields = {}) {
+// async function updatePartial(id, fields = {}) {
+//   const sets = [];
+//   const vals = [];
+//   let idx = 1;
+//   for (const [k, v] of Object.entries(fields)) {
+//     sets.push(`${k} = $${idx++}`);
+//     vals.push(k === 'config' || k === 'entries' ? JSON.stringify(v) : v);
+//   }
+//   if (sets.length === 0) return findById(id);
+//   // always update updated_at
+//   vals.push(id);
+//   const q = `UPDATE bots SET ${sets.join(', ')}, updated_at = now() WHERE id = $${idx} RETURNING *`;
+//   const { rows } = await db.query(q, vals);
+//   return rows[0] || null;
+// }
+async function updatePartial(id, patch = {}) {
+  // allowed columns you support updating
+  const allowed = ['status','config','entries','updated_at','closed_at','deleted_at'];
+  const keys = Object.keys(patch).filter(k => allowed.includes(k));
+  if (keys.length === 0) return null;
+
   const sets = [];
-  const vals = [];
-  let idx = 1;
-  for (const [k, v] of Object.entries(fields)) {
-    sets.push(`${k} = $${idx++}`);
-    vals.push(k === 'config' || k === 'entries' ? JSON.stringify(v) : v);
+  const values = [];
+
+  // parameters start at $2 because $1 is id
+  keys.forEach((k, idx) => {
+    sets.push(`${k} = $${idx + 2}`);
+    values.push(patch[k]);
+  });
+
+  // Add updated_at = NOW() only if caller didn't include `updated_at`
+  if (!keys.includes('updated_at')) {
+    sets.push(`updated_at = NOW()`);
   }
-  if (sets.length === 0) return findById(id);
-  // always update updated_at
-  vals.push(id);
-  const q = `UPDATE bots SET ${sets.join(', ')}, updated_at = now() WHERE id = $${idx} RETURNING *`;
-  const { rows } = await db.query(q, vals);
+
+  const q = `UPDATE bots SET ${sets.join(', ')} WHERE id = $1 RETURNING *;`;
+  const params = [id, ...values];
+  const { rows } = await db.query(q, params);
   return rows[0] || null;
 }
-
 /**
  * pushEntry - append an entry object to bots.entries (JSONB array) atomically
  */
@@ -67,5 +91,28 @@ async function setStatus(id, status) {
 async function setClosed(id) {
   return updatePartial(id, { status: 'closed', closed_at: new Date() });
 }
+async function deleteById(id) {
+  // Return the deleted row (useful for logging), we perform a DELETE ... RETURNING *
+  const q = `DELETE FROM bots WHERE id = $1 RETURNING *`;
+  const { rows } = await db.query(q, [id]);
+  return rows[0] || null;
+}
+async function findByStatus(status) {
+  const q = `SELECT * FROM bots WHERE status = $1`;
+  const { rows } = await db.query(q, [status]);
+  return rows;
+}
+async function markDeleted(id) {
+  const q = `
+    UPDATE bots
+    SET status = 'deleted',
+        deleted_at = NOW(),
+        updated_at = NOW()
+    WHERE id = $1
+    RETURNING *;
+  `;
+  const { rows } = await db.query(q, [id]);
+  return rows[0] || null;
+}
 
-module.exports = { createBot, findById, findAll, updatePartial, pushEntry, setStatus, setClosed };
+module.exports = { createBot, findById, findAll, updatePartial, pushEntry, setStatus, setClosed,deleteById,markDeleted ,findByStatus };
