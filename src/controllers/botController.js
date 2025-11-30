@@ -90,13 +90,17 @@ function BotController() {
     try {
       const bot = await botsModel.findById(req.params.id);
       if (!bot) return res.status(404).send('not found');
-      console.log("-------------line no 93---------",bot.status)
+      console.log("-------------line no 93---------", bot.status)
       if (bot.status === 'deleted') {
         return res.status(400).json({
           error: "This bot has been deleted and cannot be restarted."
         });
       }
-
+      if (bot.status === 'running') {
+        return res.status(400).json({
+          error: "This bot is already running"
+        });
+      }
       await botsModel.setStatus(req.params.id, 'running');
 
       // enqueue first tick
@@ -117,7 +121,11 @@ function BotController() {
     const botId = req.params.id;
     const bot = await botsModel.findById(botId);
     if (!bot) return res.status(404).json({ error: 'not found' });
-
+    if (bot.status === 'deleted' ||bot.status === 'deleting' ) {
+      return res.status(400).json({
+        error: "This bot is already deleted"
+      });
+    }
     try {
       await enqueueBotDelete(botId);
       // mark as in-progress so UI knows
@@ -134,7 +142,16 @@ function BotController() {
     try {
       const bot = await botsModel.findById(req.params.id);
       if (!bot) return res.status(404).send('not found');
-
+   if (bot.status === 'deleted') {
+        return res.status(400).json({
+          error: "This bot has been deleted and cannot be stop."
+        });
+      }
+      if (bot.status !== 'running') {
+        return res.status(400).json({
+          error: "This bot is already stopped"
+        });
+      }
       await botsModel.setClosed(req.params.id);
 
       // Try to remove pending tick job for this bot (jobId: `tick:<botId>`)
