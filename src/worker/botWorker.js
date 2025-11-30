@@ -58,7 +58,7 @@ class BotWorker {
         if (!bot) throw new Error('bot not found');
 
         // set status to running
-        await botsModel.setStatus(botId, 'running');
+        // await botsModel.setStatus(botId, 'running');
 
         // enqueue first tick
         // await enqueueBotTick(botId);

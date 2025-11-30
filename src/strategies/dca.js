@@ -147,18 +147,18 @@
 // }
 
 // module.exports = { runDcaStep, checkExit, computeAvgPriceAndAmount };
-function pctDiff(current, from){
+function pctDiff(current, from) {
   return ((current - from) / from) * 100;
 }
 
-function computeAvgPriceAndAmount(entries = []){
+function computeAvgPriceAndAmount(entries = []) {
   console.debug(`[DCA] computeAvgPriceAndAmount entries=${entries.length}`);
   let totalNotional = 0;
   let totalAmount = 0;
-  for(const e of entries){
+  for (const e of entries) {
     const p = Number(e.price || 0);
     const a = Number(e.amount || 0);
-    if(!p || !a) continue;
+    if (!p || !a) continue;
     totalNotional += p * a;
     totalAmount += a;
   }
@@ -167,7 +167,7 @@ function computeAvgPriceAndAmount(entries = []){
   return { avgPrice: avg, totalAmount, totalNotional };
 }
 
-async function runDcaStep(bot, ticker, metrics){
+async function runDcaStep(bot, ticker, metrics) {
   console.debug(`[DCA] runDcaStep start pair=${bot.pair} price=${ticker.last}`);
   const price = ticker.last;
   const cfg = bot.config || {};
@@ -179,6 +179,7 @@ async function runDcaStep(bot, ticker, metrics){
   const minOrderUsd = cfg.minOrderUsd || 10;
   const maxAllocPct = cfg.maxAllocPct || 20;
   const perBuyPct = cfg.perBuyPct || 5;
+  const enableIndicators = cfg.enableIndicators || 0;
 
   const ema200_4h = metrics.ema200_4h;
   const rsi_4h = metrics.rsi_4h;
@@ -186,38 +187,51 @@ async function runDcaStep(bot, ticker, metrics){
   const btc_1h_ema200 = metrics.btc_1h_ema200;
   console.debug(`[DCA] metrics=${JSON.stringify(metrics)}`);
 
-//   if(!(ema200_4h && rsi_4h !== undefined && btc_1h && btc_1h_ema200)){
-//     console.debug(`[DCA] missing metrics`);
-//     return { placeOrder: false, reason: 'missing metrics' };
-//   }
+  //   if(!(ema200_4h && rsi_4h !== undefined && btc_1h && btc_1h_ema200)){
+  //     console.debug(`[DCA] missing metrics`);
+  //     return { placeOrder: false, reason: 'missing metrics' };
+  //   }
 
   const belowEMA = price < ema200_4h;
   const rsiOk = rsi_4h < 40;
   const btcTrendOk = btc_1h > btc_1h_ema200;
   console.debug(`[DCA] cond belowEMA=${belowEMA} rsiOk=${rsiOk} btcTrendOk=${btcTrendOk}`);
 
-//   if(!(belowEMA && rsiOk && btcTrendOk)){
-//     return { placeOrder: false, reason: 'conditions not met' };
-//   }
+  //   if(!(belowEMA && rsiOk && btcTrendOk)){
+  //     return { placeOrder: false, reason: 'conditions not met' };
+  //   }
+  if (enableIndicators) {
+    const failed = [];
 
+    if (!belowEMA) failed.push('Price is above the 4H EMA200');
+    if (!rsiOk) failed.push('RSI 4H is too high');
+    if (!btcTrendOk) failed.push('BTC 1H is below its EMA200 (downtrend)');
+
+    if (failed.length > 0) {
+      return {
+        placeOrder: false,
+        reason: `DCA entry conditions not met: ${failed.join(', ')}.`
+      };
+    }
+  }
   const existingEntries = bot.entries || [];
   console.debug(`[DCA] existing entries=${existingEntries.length}`);
 
-  if(existingEntries.length >= maxEntries){
+  if (existingEntries.length >= maxEntries) {
     console.debug(`[DCA] max entries reached`);
-    return { placeOrder:false, reason:'max entries reached' };
+    return { placeOrder: false, reason: 'max entries reached' };
   }
 
-  if(existingEntries.length > 0){
+  if (existingEntries.length > 0) {
     const lastPrice = Number(existingEntries[existingEntries.length - 1].price);
     const drop = pctDiff(price, lastPrice);
     console.debug(`[DCA] drop from last entry=${drop}`);
 
-    if(existingEntries.length === 1 && drop > -10){
-      return { placeOrder:false, reason:'not dropped enough for 2nd entry' };
+    if (existingEntries.length === 1 && drop > -10) {
+      return { placeOrder: false, reason: 'not dropped enough for 2nd entry' };
     }
-    if(existingEntries.length === 2 && drop > -15){
-      return { placeOrder:false, reason:'not dropped enough for 3rd entry' };
+    if (existingEntries.length === 2 && drop > -15) {
+      return { placeOrder: false, reason: 'not dropped enough for 3rd entry' };
     }
   }
 
@@ -227,15 +241,15 @@ async function runDcaStep(bot, ticker, metrics){
   const maxAllocUsd = portfolioUsd * (maxAllocPct / 100);
   console.debug(`[DCA] allocUsd=${allocationUsd} existingNotional=${existingNotional} totalAllocatedUsd=${totalAllocatedUsd} maxAllocUsd=${maxAllocUsd}`);
 
-  if(totalAllocatedUsd > maxAllocUsd){
-    return { placeOrder:false, reason:'exceeds max allocation' };
+  if (totalAllocatedUsd > maxAllocUsd) {
+    return { placeOrder: false, reason: 'exceeds max allocation' };
   }
 
   const amount = Number((allocationUsd / price).toFixed(6));
   console.debug(`[DCA] computed buy amount=${amount}`);
 
-  if(allocationUsd < minOrderUsd || amount <= 0){
-    return { placeOrder:false, reason:'order too small' };
+  if (allocationUsd < minOrderUsd || amount <= 0) {
+    return { placeOrder: false, reason: 'order too small' };
   }
 
   console.debug(`[DCA] RUN BUY order`);
@@ -250,7 +264,7 @@ async function runDcaStep(bot, ticker, metrics){
   };
 }
 
-async function checkExit(bot, ticker){
+async function checkExit(bot, ticker) {
   console.debug(`[DCA] checkExit start pair=${bot.pair} price=${ticker.last}`);
 
   const price = ticker.last;
@@ -262,17 +276,17 @@ async function checkExit(bot, ticker){
 
   const entries = bot.entries || [];
   console.debug(`[DCA] entries=${entries.length}`);
-  if(!entries.length) return { placeOrder:false, reason:'no position' };
+  if (!entries.length) return { placeOrder: false, reason: 'no position' };
 
   const { avgPrice, totalAmount } = computeAvgPriceAndAmount(entries);
   console.debug(`[DCA] avgPrice=${avgPrice} totalAmount=${totalAmount}`);
 
-  if(totalAmount <= 0) return { placeOrder:false, reason:'no amount' };
+  if (totalAmount <= 0) return { placeOrder: false, reason: 'no amount' };
 
   const pnlPct = pctDiff(price, avgPrice);
   console.debug(`[DCA] pnlPct=${pnlPct}`);
 
-  if(takeProfitPct && pnlPct >= takeProfitPct){
+  if (takeProfitPct && pnlPct >= takeProfitPct) {
     console.debug(`[DCA] TAKE PROFIT triggered`);
     return {
       placeOrder: true,
@@ -287,7 +301,7 @@ async function checkExit(bot, ticker){
     };
   }
 
-  if(typeof stopLossPct === 'number' && pnlPct <= -Math.abs(stopLossPct)){
+  if (typeof stopLossPct === 'number' && pnlPct <= -Math.abs(stopLossPct)) {
     console.debug(`[DCA] STOP LOSS triggered`);
     return {
       placeOrder: true,
@@ -303,7 +317,7 @@ async function checkExit(bot, ticker){
   }
 
   console.debug(`[DCA] no exit condition met`);
-  return { placeOrder:false, reason: 'no exit condition met' };
+  return { placeOrder: false, reason: 'no exit condition met' };
 }
 
 module.exports = { runDcaStep, checkExit, computeAvgPriceAndAmount };
