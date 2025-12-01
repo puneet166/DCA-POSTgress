@@ -5,7 +5,6 @@ const ajv = new Ajv({ allErrors: true });
 const botSchema = {
   type: 'object',
   properties: {
-    userId: { type: 'string', minLength: 1 },
     pair: {
       type: 'string',
       enum: ['BTC/USDT','ETH/USDT','SOL/USDT','XRP/USDT','LINK/USDT','DOGE/USDT']
@@ -25,7 +24,7 @@ const botSchema = {
       additionalProperties: true
     }
   },
-  required: ['userId','pair','config'],
+  required: ['pair','config'],
   additionalProperties: false
 };
 
