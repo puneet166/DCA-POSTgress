@@ -367,7 +367,7 @@ class ExchangeAdapter {
             }
             else {
                 // const placed = await this.client.createOrder(symbol, type, side, Number(amountStr), priceArg, params);
-                 placed = await this.client.createOrder(symbol, type, side, Number(amountStr) * 0.9 , type === 'market' ? undefined : price, params);
+                 placed = await this.client.createOrder(symbol, type, side, Number(amountStr) * 0.96 , type === 'market' ? undefined : price, params);
 
                 console.debug(`[ExchangeAdapter] sell is excuted`);
 

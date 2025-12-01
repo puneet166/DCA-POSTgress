@@ -4,6 +4,7 @@ const bodyParser = require('body-parser');
 
 const { initDb, closeDb } = require('./lib/db');
 const { initLogger } = require('./lib/logger');
+const { PnlController } = require('./controllers/pnlController');
 
 const { BotController } = require('./controllers/botController');
 const { UserController } = require('./controllers/userController');
@@ -31,6 +32,7 @@ async function main() {
     app.use('/api/bots', BotController());
     app.use('/api/users', UserController());
     app.use('/api/bot-logs', BotLogsController());
+    app.use('/api/bots', PnlController());
 
     const port = process.env.PORT || 3000;
     const server = app.listen(port, () => {
