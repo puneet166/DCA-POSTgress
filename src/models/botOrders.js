@@ -15,6 +15,29 @@ async function findByOrderId(orderId) {
   const { rows } = await db.query(q, [orderId]);
   return rows[0] || null;
 }
+/**
+ * List orders for a bot (newest first)
+ * @param {string} botId
+ * @param {object} opts
+ * @param {number} opts.limit - max number of orders
+ * @param {string} [opts.side] - optional filter: 'buy' or 'sell'
+ */
+async function listByBot(botId, { limit = 100, side } = {}) {
+  const params = [botId];
+  let idx = 2;
 
+  let q = `SELECT * FROM bot_orders WHERE bot_id = $1`;
 
-module.exports = { insertOrder, findByOrderId };
+  if (side) {
+    q += ` AND side = $${idx++}`;
+    params.push(side);
+  }
+
+  q += ` ORDER BY created_at DESC LIMIT $${idx}`;
+  params.push(limit);
+
+  const { rows } = await db.query(q, params);
+  return rows;
+}
+
+module.exports = { insertOrder, findByOrderId,listByBot };
