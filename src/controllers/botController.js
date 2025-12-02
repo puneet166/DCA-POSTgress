@@ -4,20 +4,35 @@ const { validateBotPayload } = require('../lib/validator');
 const { enqueueBotCreate, enqueueBotTick, botQueue, enqueueBotDelete } = require('../worker/queue');
 const { logBot } = require('../lib/botLogger');
 const { v4: uuidv4 } = require('uuid');
+const authenticateAndCheckSubscription = require('../middleware/authProxy');
+const checkSubscription = require("../services/subscriptionService");
 
 const botsModel = require('../models/bots');
 
 function BotController() {
   const r = Router();
 
+  // Apply auth for all routes in this router
+  r.use(authenticateAndCheckSubscription);
+
   // Create bot
   r.post('/', async (req, res) => {
     const payload = req.body;
+
+  // Now you can use req.userId instead of payload.userId for security
+    const userId = req.userId;
+
+      // Subscription check ONLY for bot creation endpoint
+  const isActive = await checkSubscription(userId);
+  if (!isActive) {
+    return res.status(403).json({ error: "You have no active plan to create Bot" });
+  }
+
     if (!validateBotPayload(payload)) return res.status(400).json({ error: 'invalid payload' });
     const id = uuidv4();
     const bot = {
       id,
-      userId: payload.userId,
+      userId: userId,
       pair: payload.pair,
       config: payload.config,
       status: 'created',
@@ -51,7 +66,13 @@ function BotController() {
   r.get('/:id', async (req, res) => {
     try {
       const bot = await botsModel.findById(req.params.id);
-      if (!bot) return res.status(404).send('not found');
+      if (!bot) {
+      return res.status(404).json({
+       statusCode: 404,
+       status: false,
+       message: "Bot not found"
+      });
+     }
       res.json(bot);
     } catch (err) {
       console.error('get bot error', err);
@@ -61,8 +82,14 @@ function BotController() {
 
   // List bots
   r.get('/', async (req, res) => {
+       const userId = req.userId;
     try {
-      const bots = await botsModel.findAll();
+      const bots = await botsModel.findAll({userId:userId});
+      if (bots.length==0) return res.status(404).json({
+       statusCode: 404,
+       status: false,
+       message: "Bot not found"
+      });
       res.json(bots);
     } catch (err) {
       console.error('list bots error', err);
@@ -77,7 +104,11 @@ function BotController() {
       if (req.body.config) update.config = req.body.config;
       if (Object.keys(update).length === 0) return res.status(400).json({ error: 'nothing to update' });
       const bot = await botsModel.updatePartial(req.params.id, update);
-      if (!bot) return res.status(404).json({ error: 'not found' });
+      if (!bot) return res.status(404).json({
+       statusCode: 404,
+       status: false,
+       message: "Not found"
+      });
       res.json(bot);
     } catch (err) {
       console.error('patch bot error', err);
@@ -89,7 +120,11 @@ function BotController() {
   r.post('/:id/start', async (req, res) => {
     try {
       const bot = await botsModel.findById(req.params.id);
-      if (!bot) return res.status(404).send('not found');
+      if (!bot) return res.status(404).json({
+       statusCode: 404,
+       status: false,
+       message: "Bot not found"
+      });
       console.log("-------------line no 93---------", bot.status)
       if (bot.status === 'deleted') {
         return res.status(400).json({
@@ -97,9 +132,12 @@ function BotController() {
         });
       }
       if (bot.status === 'running') {
-        return res.status(400).json({
-          error: "This bot is already running"
-        });
+      return res.status(400).json({
+       statusCode: 400,
+       status: false,
+       message: "This bot is already running"
+      });
+       
       }
       await botsModel.setStatus(req.params.id, 'running');
 
@@ -120,11 +158,20 @@ function BotController() {
   r.delete('/:id', async (req, res) => {
     const botId = req.params.id;
     const bot = await botsModel.findById(botId);
-    if (!bot) return res.status(404).json({ error: 'not found' });
+    if (!bot) 
+      return res.status(404).json({
+       statusCode: 404,
+       status: false,
+       message: "not found'"
+      });
+      
     if (bot.status === 'deleted' ||bot.status === 'deleting' ) {
       return res.status(400).json({
-        error: "This bot is already deleted"
+       statusCode: 400,
+       status: false,
+       message: "This bot is already deleted"
       });
+      
     }
     try {
       await enqueueBotDelete(botId);
@@ -141,16 +188,28 @@ function BotController() {
   r.post('/:id/stop', async (req, res) => {
     try {
       const bot = await botsModel.findById(req.params.id);
-      if (!bot) return res.status(404).send('not found');
+      if (!bot) 
+        return res.status(404).json({
+       statusCode: 404,
+       status: false,
+       message: "not found'"
+      });
+        
    if (bot.status === 'deleted') {
-        return res.status(400).json({
-          error: "This bot has been deleted and cannot be stop."
-        });
+
+    return res.status(400).json({
+       statusCode: 400,
+       status: false,
+       message: "This bot has been deleted and cannot be stop."
+      });
       }
       if (bot.status !== 'running') {
-        return res.status(400).json({
-          error: "This bot is already stopped"
-        });
+      return res.status(400).json({
+       statusCode: 400,
+       status: false,
+       message: "This bot is already stopped"
+      });
+
       }
       await botsModel.setClosed(req.params.id);
 
