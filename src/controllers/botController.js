@@ -4,6 +4,9 @@ const { validateBotPayload } = require('../lib/validator');
 const { enqueueBotCreate, enqueueBotTick, botQueue, enqueueBotDelete } = require('../worker/queue');
 const { logBot } = require('../lib/botLogger');
 const { v4: uuidv4 } = require('uuid');
+
+const botOrdersModel = require('../models/botOrders');
+
 const authenticateAndCheckSubscription = require('../middleware/authProxy');
 const checkSubscription = require("../services/subscriptionService");
 
@@ -80,6 +83,29 @@ function BotController() {
     }
   });
 
+    // Get all orders for a bot (executed by this bot)
+  // GET /api/bots/:id/orders?limit=100&side=buy|sell
+  r.get('/:id/orders', async (req, res) => {
+    const botId = req.params.id;
+    const limit = Number(req.query.limit || 100);
+    const side = req.query.side ? String(req.query.side).toLowerCase() : undefined;
+
+    try {
+      // ensure bot exists (optional but nicer error)
+      const bot = await botsModel.findById(botId);
+      if (!bot) return res.status(404).json({ error: 'bot not found' });
+
+      const orders = await botOrdersModel.listByBot(botId, { limit, side });
+      // You can map / sanitize here if you want to hide raw payload,
+      // but for now we return full records so frontend can decide.
+      return res.json(orders);
+    } catch (err) {
+      console.error('list bot orders error', err);
+      return res.status(500).json({ error: 'internal error' });
+    }
+  });
+
+
   // List bots
   r.get('/', async (req, res) => {
        const userId = req.userId;
@@ -120,12 +146,13 @@ function BotController() {
   r.post('/:id/start', async (req, res) => {
     try {
       const bot = await botsModel.findById(req.params.id);
+
       if (!bot) return res.status(404).json({
        statusCode: 404,
        status: false,
        message: "Bot not found"
       });
-      console.log("-------------line no 93---------", bot.status)
+      // console.log("-------------line no 93---------", bot.status)
       if (bot.status === 'deleted') {
         return res.status(400).json({
           error: "This bot has been deleted and cannot be restarted."

@@ -185,7 +185,7 @@ async function runDcaStep(bot, ticker, metrics) {
   const rsi_4h = metrics.rsi_4h;
   const btc_1h = metrics.btc_1h;
   const btc_1h_ema200 = metrics.btc_1h_ema200;
-  console.debug(`[DCA] metrics=${JSON.stringify(metrics)}`);
+  // console.debug(`[DCA] metrics=${JSON.stringify(metrics)}`);
 
   //   if(!(ema200_4h && rsi_4h !== undefined && btc_1h && btc_1h_ema200)){
   //     console.debug(`[DCA] missing metrics`);
