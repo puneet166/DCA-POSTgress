@@ -9,7 +9,6 @@ const botOrdersModel = require('../models/botOrders');
 
 const authenticateAndCheckSubscription = require('../middleware/authProxy');
 const checkSubscription = require("../services/subscriptionService");
-const getUserExchangeKeys=require("../services/getExchangeKeys") // this function will call where use of apikey and secret
 
 const botsModel = require('../models/bots');
 
