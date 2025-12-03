@@ -6,7 +6,6 @@ const authApi = axios.create({
 
 async function getUserExchangeKeys(userId) {
   const resp = await authApi.post("/get-keys", { userId });
-  console.log("resp=>",resp)
   return resp.data;
 }
 
