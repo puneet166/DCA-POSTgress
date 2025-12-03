@@ -5,7 +5,7 @@ const pg = require('../lib/pgClient');
 
 async function run() {
   try {
-    const sql = fs.readFileSync(path.join(__dirname, '../../migrations/001_init_schema.sql'), 'utf8');
+    const sql = fs.readFileSync(path.join(__dirname, '../../migrations/002_init_schema.sql'), 'utf8');
     await pg.query(sql);
     console.log('Migration applied');
     process.exit(0);
