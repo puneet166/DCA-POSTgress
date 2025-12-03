@@ -16,7 +16,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS users_api_key_idx ON users(api_key);
 -- BOTS
 CREATE TABLE IF NOT EXISTS bots (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  user_id INTEGER NOT NULL, 
   pair TEXT NOT NULL,
   config JSONB NOT NULL DEFAULT '{}'::jsonb,
   status TEXT NOT NULL DEFAULT 'created',
