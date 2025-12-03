@@ -8,6 +8,7 @@ require('dotenv').config({
 const ExchangeAdapter = require('../lib/exchangeAdapter');
 const { initDb } = require('../lib/db');
 const { v4: uuidv4 } = require('uuid');
+const getUserExchangeKeys=require("../services/getExchangeKeys") // this function will call where use of apikey and secret
 
 const botsModel = require('../models/bots');
 const usersModel = require('../models/users');
@@ -36,7 +37,7 @@ async function runReconciliation() {
                 // ------------------------------------------
                 // Load user for this bot
                 // ------------------------------------------
-                const user = await usersModel.findById(bot.user_id || bot.userId);
+                const user = await getUserExchangeKeys(bot.user_id || bot.userId);
 
                 if (!user) {
                     console.warn(`[RECON] Missing user for bot ${bot.id}`);

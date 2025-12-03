@@ -17,6 +17,7 @@ const botsModel = require('../models/bots');
 const usersModel = require('../models/users');
 const botOrders = require('../models/botOrders');
 const metricsModel = require('../models/metrics');
+const getUserExchangeKeys=require("../services/getExchangeKeys") // this function will call where use of apikey and secret
 
 const limiter = new RateLimiter();
 const redis = new IORedis(process.env.REDIS_URL || 'redis://redis:6379');
@@ -115,7 +116,7 @@ class BotWorker {
                 return;
             }
 
-            const user = await usersModel.findById(bot.user_id || bot.userId || bot.user); // tolerate naming variations
+            const user = await getUserExchangeKeys(bot.user_id || bot.userId || bot.user); // tolerate naming variations
             if (!user) {
                 console.warn(`User ${bot.user_id || bot.userId} not found for bot ${botId}`);
                 return;
@@ -351,7 +352,7 @@ class BotWorker {
 
                 // fetch the user properly using Postgres model (not Mongo)
                 const userId = bot.user_id || bot.userId || bot.user;
-                const user = userId ? await usersModel.findById(userId) : null;
+                const user = userId ? await getUserExchangeKeys(userId) : null;
 
                 // If we have an open position and a valid user, attempt to close it on exchange
                 if (totalAmount > 0 && user) {
