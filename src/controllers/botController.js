@@ -9,6 +9,7 @@ const botOrdersModel = require('../models/botOrders');
 
 const authenticateAndCheckSubscription = require('../middleware/authProxy');
 const checkSubscription = require("../services/subscriptionService");
+const getUserExchangeKeys=require("../services/getExchangeKeys") // this function will call where use of apikey and secret
 
 const botsModel = require('../models/bots');
 
@@ -25,6 +26,7 @@ function BotController() {
   // Now you can use req.userId instead of payload.userId for security
     const userId = req.userId;
 
+   
       // Subscription check ONLY for bot creation endpoint
   const isActive = await checkSubscription(userId);
   if (!isActive) {
