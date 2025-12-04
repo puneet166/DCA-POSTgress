@@ -115,4 +115,23 @@ async function markDeleted(id) {
   return rows[0] || null;
 }
 
-module.exports = { createBot, findById, findAll, updatePartial, pushEntry, setStatus, setClosed,deleteById,markDeleted ,findByStatus };
+async function countBots(userId) {
+  const result = await db.query(
+    `SELECT COUNT(*) FROM bots WHERE "user_id" = $1 AND status != 'deleting'`,
+    [userId]
+  );
+  return Number(result.rows[0].count);
+}
+
+// Find bot for same pair
+async function findBotByPair({ userId, pair }) {
+  const result = await db.query(
+    `SELECT * FROM bots 
+     WHERE "user_id" = $1 AND pair = $2 AND status != 'deleting'
+     LIMIT 1`,
+    [userId, pair]
+  );
+  return result.rows[0] || null;
+}
+
+module.exports = { createBot, findById, findAll, updatePartial, pushEntry, setStatus, setClosed,deleteById,markDeleted ,findByStatus,countBots,findBotByPair };

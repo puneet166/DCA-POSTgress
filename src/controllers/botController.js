@@ -1,4 +1,3 @@
-// src/controllers/botController.js
 const { Router } = require('express');
 const { validateBotPayload } = require('../lib/validator');
 const { enqueueBotCreate, enqueueBotTick, botQueue, enqueueBotDelete } = require('../worker/queue');
@@ -9,7 +8,7 @@ const botOrdersModel = require('../models/botOrders');
 
 const authenticateAndCheckSubscription = require('../middleware/authProxy');
 const checkSubscription = require("../services/subscriptionService");
-
+const validateBotCreationRules =require("../services/validateBotCreationRule")
 const botsModel = require('../models/bots');
 
 function BotController() {
@@ -23,16 +22,26 @@ function BotController() {
     const payload = req.body;
 
   // Now you can use req.userId instead of payload.userId for security
+   if (!validateBotPayload(payload)) return res.status(400).json({ error: 'invalid payload' });
+   
     const userId = req.userId;
 
-   
-      // Subscription check ONLY for bot creation endpoint
-  const isActive = await checkSubscription(userId);
-  if (!isActive) {
-    return res.status(403).json({ error: "You have no active plan to create Bot" });
-  }
+  // Subscription check ONLY for bot creation endpoint
+  const subscriptionDetail = await checkSubscription(userId);
+  // if (!subscriptionDetail.subscriptionActive) {
+  //   return res.status(403).json({ error: "You have no active plan to create Bot" });
+  // }
+  const planName = subscriptionDetail.subscription.planName
+   const ruleCheck = await validateBotCreationRules({
+    userId,
+    planName,
+    activeSub:subscriptionDetail.subscriptionActive,
+    value: { pair: payload.pair }
+  });
 
-    if (!validateBotPayload(payload)) return res.status(400).json({ error: 'invalid payload' });
+  if (!ruleCheck.success) {
+    return res.status(ruleCheck.status).json({ error: ruleCheck.message });
+  }
     const id = uuidv4();
     const bot = {
       id,
