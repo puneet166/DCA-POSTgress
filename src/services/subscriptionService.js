@@ -6,7 +6,7 @@ const authApi = axios.create({
 
 async function checkSubscription(userId) {
   const resp = await authApi.post("/check-subscription", { userId });
-  return resp.data.subscriptionActive;
+  return resp.data;
 }
 
 module.exports = checkSubscription;
