@@ -8,7 +8,7 @@ const api = axios.create({
   timeout: 3000,
 });
 
-async function authenticateAndCheckSubscription(req, res, next) {
+async function authenticateUser(req, res, next) {
   try {
     // Accept Bearer token in Authorization header or token header
     const tokenFromHeader = req.headers.authorization 
@@ -46,4 +46,4 @@ async function authenticateAndCheckSubscription(req, res, next) {
   }
 }
 
-module.exports = authenticateAndCheckSubscription;
+module.exports = authenticateUser;

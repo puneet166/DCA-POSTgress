@@ -20,11 +20,18 @@ async function findById(id) {
   return rows[0] || null;
 }
 
-async function findAll() {
-  const q = `SELECT * FROM bots ORDER BY created_at DESC`;
-  const { rows } = await db.query(q);
+async function findAll(userId) {
+  const q = `
+    SELECT *
+    FROM bots
+    WHERE user_id = $1
+    ORDER BY created_at DESC
+  `;
+  
+  const { rows } = await db.query(q, [userId]);
   return rows;
 }
+
 
 /**
  * updatePartial - only sets provided fields (config, status, closed_at, etc).
@@ -117,7 +124,7 @@ async function markDeleted(id) {
 
 async function countBots(userId) {
   const result = await db.query(
-    `SELECT COUNT(*) FROM bots WHERE "user_id" = $1 AND status != 'deleting'`,
+    `SELECT COUNT(*) FROM bots WHERE "user_id" = $1 AND status != 'deleted'`,
     [userId]
   );
   return Number(result.rows[0].count);
@@ -127,11 +134,31 @@ async function countBots(userId) {
 async function findBotByPair({ userId, pair }) {
   const result = await db.query(
     `SELECT * FROM bots 
-     WHERE "user_id" = $1 AND pair = $2 AND status != 'deleting'
+     WHERE "user_id" = $1 AND pair = $2 AND status != 'deleted'
      LIMIT 1`,
     [userId, pair]
   );
   return result.rows[0] || null;
 }
 
-module.exports = { createBot, findById, findAll, updatePartial, pushEntry, setStatus, setClosed,deleteById,markDeleted ,findByStatus,countBots,findBotByPair };
+// async function findActiveBots() {
+//   const q = `SELECT * FROM bots WHERE status NOT IN ('deleting', 'deleted') ORDER BY created_at DESC`;
+//   const { rows } = await db.query(q);
+//   return rows;
+// }
+
+async function findActiveBots(userId) {
+  const q = `
+    SELECT *
+    FROM bots
+    WHERE user_id = $1
+      AND status NOT IN ('deleting', 'deleted')
+    ORDER BY created_at DESC
+  `;
+  
+  const { rows } = await db.query(q, [userId]);
+  return rows;
+}
+
+
+module.exports = { createBot, findById, findAll, updatePartial, pushEntry, setStatus, setClosed,deleteById,markDeleted ,findByStatus,countBots,findBotByPair,findActiveBots };
