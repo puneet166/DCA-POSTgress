@@ -6,7 +6,7 @@ const { v4: uuidv4 } = require('uuid');
 
 const botOrdersModel = require('../models/botOrders');
 
-const authenticateAndCheckSubscription = require('../middleware/authProxy');
+const authenticateUser = require('../middleware/authProxy');
 const checkSubscription = require("../services/subscriptionService");
 const validateBotCreationRules =require("../services/validateBotCreationRule")
 const botsModel = require('../models/bots');
@@ -15,7 +15,7 @@ function BotController() {
   const r = Router();
 
   // Apply auth for all routes in this router
-  r.use(authenticateAndCheckSubscription);
+  r.use(authenticateUser);
 
   // Create bot
   r.post('/', async (req, res) => {
@@ -75,6 +75,23 @@ function BotController() {
     }
   });
 
+        // List All bots
+  r.get('/allBots', async (req, res) => {
+       const userId = req.userId;
+    try {
+      const bots = await botsModel.findAll(userId);
+      if (bots.length==0) return res.status(404).json({
+       statusCode: 404,
+       status: false,
+       message: "Bot not found"
+      });
+      res.json(bots);
+    } catch (err) {
+      console.error('list bots error', err);
+      res.status(500).send('internal error');
+    }
+  });
+
   // Get bot by id
   r.get('/:id', async (req, res) => {
     try {
@@ -116,11 +133,11 @@ function BotController() {
   });
 
 
-  // List bots
+  // List Active bots
   r.get('/', async (req, res) => {
        const userId = req.userId;
     try {
-      const bots = await botsModel.findAll({userId:userId});
+      const bots = await botsModel.findActiveBots(userId);
       if (bots.length==0) return res.status(404).json({
        statusCode: 404,
        status: false,
@@ -132,6 +149,8 @@ function BotController() {
       res.status(500).send('internal error');
     }
   });
+
+
 
   // Partial update (config)
   r.patch('/:id', async (req, res) => {
@@ -195,6 +214,7 @@ function BotController() {
   r.delete('/:id', async (req, res) => {
     const botId = req.params.id;
     const bot = await botsModel.findById(botId);
+    
     if (!bot) 
       return res.status(404).json({
        statusCode: 404,
@@ -270,6 +290,9 @@ function BotController() {
       res.status(500).json({ error: 'internal error' });
     }
   });
+
+
+
 
   return r;
 }

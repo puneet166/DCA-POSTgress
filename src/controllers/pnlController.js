@@ -5,7 +5,7 @@
 const { Router } = require('express');
 const db = require('../lib/pgClient');
 const botsModel = require('../models/bots');
-const authenticateAndCheckSubscription = require('../middleware/authProxy');
+const authenticateUser = require('../middleware/authProxy');
 
 
 function round(n, decimals = 8){
@@ -74,7 +74,7 @@ function PnlController(){
   const r = Router();
 
    // Apply auth for all routes in this router
-  r.use(authenticateAndCheckSubscription);
+  r.use(authenticateUser);
 
   r.get('/:id/pnl', async (req, res) => {
     const botId = req.params.id;
