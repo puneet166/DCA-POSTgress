@@ -121,7 +121,13 @@ class BotWorker {
                 console.warn(`User ${bot.user_id || bot.userId} not found for bot ${botId}`);
                 return;
             }
+// Take the first key
+const firstKey = user.keys[0];
 
+// Merge values onto user so you can use user.exchange, user.api_key, user.api_secret
+user.exchange  = firstKey.exchange;
+user.api_key   = firstKey.api_key;
+user.api_secret = firstKey.api_secret;
             const exchangeId = user.exchange || 'bybit';
             const adapter = new ExchangeAdapter(user.api_key || user.apiKey, user.api_secret || user.apiSecret, exchangeId);
             const exchangeKey = adapter.exchangeKey;
@@ -353,6 +359,17 @@ class BotWorker {
                 // fetch the user properly using Postgres model (not Mongo)
                 const userId = bot.user_id || bot.userId || bot.user;
                 const user = userId ? await getUserExchangeKeys(userId) : null;
+      if (!user) {
+                console.warn(`User ${bot.user_id || bot.userId} not found for bot ${botId}`);
+                return;
+            }
+// Take the first key
+const firstKey = user.keys[0];
+
+// Merge values onto user so you can use user.exchange, user.api_key, user.api_secret
+user.exchange  = firstKey.exchange;
+user.api_key   = firstKey.api_key;
+user.api_secret = firstKey.api_secret;
 
                 // If we have an open position and a valid user, attempt to close it on exchange
                 if (totalAmount > 0 && user) {
