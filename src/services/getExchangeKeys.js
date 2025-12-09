@@ -4,8 +4,8 @@ const authApi = axios.create({
   baseURL: process.env.AUTH_SERVICE_URL
 });
 
-async function getUserExchangeKeys(userId) {
-  const resp = await authApi.post("/get-keys", { userId });
+async function getUserExchangeKeys(userId,exchange) {
+  const resp = await authApi.post("/get-keys", { userId,exchange });
   return resp.data;
 }
 
