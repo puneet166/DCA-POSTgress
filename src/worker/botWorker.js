@@ -116,7 +116,13 @@ class BotWorker {
                 return;
             }
 
-            const user = await getUserExchangeKeys(bot.user_id || bot.userId || bot.user); // tolerate naming variations
+            // const user = await getUserExchangeKeys(bot.user_id || bot.userId || bot.user); // tolerate naming variations
+            const user = await getUserExchangeKeys(
+                bot.user_id || bot.userId || bot.user,                 // user param
+                bot.config?.exchangeName || bot.config?.exchange_name // exchange param directly
+            );
+
+
             if (!user) {
                 console.warn(`User ${bot.user_id || bot.userId} not found for bot ${botId}`);
                 return;
@@ -373,7 +379,14 @@ class BotWorker {
 
             // fetch the user properly using Postgres model (not Mongo)
             const userId = bot.user_id || bot.userId || bot.user;
-            const user = userId ? await getUserExchangeKeys(userId) : null;
+            // const user = userId ? await getUserExchangeKeys(userId) : null;
+            const user = userId
+                ? await getUserExchangeKeys(
+                    userId,
+                    bot.config?.exchangeName || bot.config?.exchange_name
+                )
+                : null;
+
             if (!user) {
                 console.warn(`User ${bot.user_id || bot.userId} not found for bot ${botId}`);
                 return;
