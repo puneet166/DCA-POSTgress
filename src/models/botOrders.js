@@ -39,5 +39,17 @@ async function listByBot(botId, { limit = 100, side } = {}) {
   const { rows } = await db.query(q, params);
   return rows;
 }
+// ✅ Proper Postgres helper: get latest order for this bot
+async function getLastOrderByBotId(botId) {
+  const q = `
+    SELECT *
+    FROM bot_orders
+    WHERE bot_id = $1
+    ORDER BY created_at DESC
+    LIMIT 1
+  `;
+  const { rows } = await db.query(q, [botId]);
+  return rows[0] || null;
+}
 
-module.exports = { insertOrder, findByOrderId,listByBot };
+module.exports = { insertOrder, findByOrderId,listByBot,getLastOrderByBotId };
