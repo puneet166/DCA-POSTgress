@@ -112,7 +112,7 @@
 // module.exports = ExchangeAdapter;
 const ccxt = require('ccxt');
 const crypto = require('crypto');
-const { computeAmountToMeetMinNotional, formatToPrecisionStr } = require('./precision');
+const { computeAmountToMeetMinNotional } = require('./precision');
 
 class ExchangeAdapter {
     constructor(apiKey, apiSecret, exchangeId = 'bybit') {
@@ -316,8 +316,47 @@ class ExchangeAdapter {
 
         // Format final amount according to market precision
         const amountPrecision = market && market.precision && market.precision.amount != null ? market.precision.amount : null;
-        const amountStr = amountPrecision != null ? formatToPrecisionStr(adjustedAmount, amountPrecision) : String(adjustedAmount);
-        console.debug(`[ExchangeAdapter] createOrder final amountStr=${amountStr} precision=${amountPrecision}`);
+        // const amountStr = amountPrecision != null ? formatToPrecisionStr(adjustedAmount, amountPrecision) : String(adjustedAmount);
+        // console.debug(`[ExchangeAdapter] createOrder final amountStr=${amountStr} precision=${amountPrecision}`);
+        const amountStr = this.client.amountToPrecision(symbol, adjustedAmount);
+        console.debug(`[ExchangeAdapter] createOrder final amountStr=${amountStr}`);
+
+        // If CCXT requires a price for market buy, ensure we have a valid price and format it
+        // let priceArg = undefined;
+        // if (type === 'market' && ccxtRequiresPriceForMarketBuy) {
+        //     // Use execPrice (from ticker/orderbook/fallback)
+        //     if (!execPrice || execPrice <= 0) {
+        //         throw new Error('createOrder cannot supply price for market buy: unable to determine a valid market price');
+        //     }
+
+        //     // Round price to market precision if available
+        //     const pricePrecision = market && market.precision && market.precision.price != null ? market.precision.price : null;
+        //     if (pricePrecision != null) {
+        //         // safe rounding: floor to precision to avoid going under step
+        //         const factor = Math.pow(10, pricePrecision);
+        //         priceArg = Math.floor(Number(execPrice) * factor) / factor;
+        //     } else {
+        //         priceArg = Number(execPrice);
+        //     }
+
+        //     // optional: apply a tiny slippage buffer so the cost estimate errs on the conservative side
+        //     // e.g., for a buy we might add 0.1% to price to ensure cost >= expected. Comment out if undesirable.
+        //     if (!params.__disableSlippageBuffer) {
+        //         const slippagePct = typeof params.__slippagePct === 'number' ? params.__slippagePct : 0.001; // default 0.1%
+        //         priceArg = Number(priceArg) * (1 + slippagePct);
+        //         // re-round after buffer
+        //         if (pricePrecision != null) {
+        //             const factor = Math.pow(10, pricePrecision);
+        //             priceArg = Math.floor(priceArg * factor) / factor;
+        //         }
+        //     }
+
+        //     console.debug(`[ExchangeAdapter] createOrder supplying priceArg=${priceArg} for market buy (ccxt requires price)`);
+        // } else {
+        //     // For limit orders or market sells or when ccxt option disabled, preserve given 'price' for limit, undefined for market
+        //     priceArg = type === 'market' ? undefined : price;
+        // }
+
 
         // If CCXT requires a price for market buy, ensure we have a valid price and format it
         let priceArg = undefined;
@@ -327,61 +366,98 @@ class ExchangeAdapter {
                 throw new Error('createOrder cannot supply price for market buy: unable to determine a valid market price');
             }
 
-            // Round price to market precision if available
-            const pricePrecision = market && market.precision && market.precision.price != null ? market.precision.price : null;
-            if (pricePrecision != null) {
-                // safe rounding: floor to precision to avoid going under step
-                const factor = Math.pow(10, pricePrecision);
-                priceArg = Math.floor(Number(execPrice) * factor) / factor;
-            } else {
-                priceArg = Number(execPrice);
-            }
+            let priceForPrecision = Number(execPrice);
 
             // optional: apply a tiny slippage buffer so the cost estimate errs on the conservative side
-            // e.g., for a buy we might add 0.1% to price to ensure cost >= expected. Comment out if undesirable.
             if (!params.__disableSlippageBuffer) {
-                const slippagePct = typeof params.__slippagePct === 'number' ? params.__slippagePct : 0.001; // default 0.1%
-                priceArg = Number(priceArg) * (1 + slippagePct);
-                // re-round after buffer
-                if (pricePrecision != null) {
-                    const factor = Math.pow(10, pricePrecision);
-                    priceArg = Math.floor(priceArg * factor) / factor;
-                }
+                const slippagePct =
+                    typeof params.__slippagePct === 'number' ? params.__slippagePct : 0.001; // default 0.1%
+                priceForPrecision = priceForPrecision * (1 + slippagePct);
             }
 
-            console.debug(`[ExchangeAdapter] createOrder supplying priceArg=${priceArg} for market buy (ccxt requires price)`);
+            // Let ccxt quantize the price
+            const priceStr = this.client.priceToPrecision(symbol, priceForPrecision);
+            priceArg = Number(priceStr);
+
+            console.debug(
+                `[ExchangeAdapter] createOrder supplying priceArg=${priceArg} (from execPrice=${execPrice}) for market buy (ccxt requires price)`
+            );
         } else {
             // For limit orders or market sells or when ccxt option disabled, preserve given 'price' for limit, undefined for market
             priceArg = type === 'market' ? undefined : price;
         }
 
         // Place order using ccxt. For market buys we might pass priceArg to satisfy CCXT.
+        // try {
+        //     let placed;  // <-- define here
+
+        //     console.debug(`[ExchangeAdapter] createOrder placing order on exchange: symbol=${symbol} type=${type} side=${side} amount=${amountStr} price=${priceArg === undefined ? 'market' : priceArg} params=${JSON.stringify(params)}`);
+        //     if (side === 'buy') {
+        //         console.debug(`[ExchangeAdapter] buy is excuted`);
+
+        //         placed = await this.client.createOrder(symbol, type, side, Number(amountStr), priceArg, params);
+        //     }
+        //     else {
+        //         // const placed = await this.client.createOrder(symbol, type, side, Number(amountStr), priceArg, params);
+        //         placed = await this.client.createOrder(symbol, type, side, Number(amountStr) * 0.96, type === 'market' ? undefined : price, params);
+
+        //         console.debug(`[ExchangeAdapter] sell is excuted`);
+
+
+        //     }
+        //     console.debug(`[ExchangeAdapter] createOrder placed order id=${placed && placed.id ? placed.id : 'unknown'} result=${JSON.stringify(placed)}`);
+        //     return placed;
+        // } catch (err) {
+        //     // If exchange rejects due to precision/minNotional, include market meta to help debugging
+        //     console.debug(`[ExchangeAdapter] createOrder exchange error: ${err && err.message ? err.message : err}. marketMeta precision=${market && market.precision ? JSON.stringify(market.precision) : 'none'} limits=${market && market.limits ? JSON.stringify(market.limits) : 'none'}`);
+        //     const e = new Error(`Exchange createOrder failed: ${err && err.message ? err.message : err}. marketMeta=${JSON.stringify({ precision: market && market.precision, limits: market && market.limits })}`);
+        //     e.original = err;
+        //     throw e;
+        // }
         try {
-                let placed;  // <-- define here
+            let tradeAmount = adjustedAmount;
 
-            console.debug(`[ExchangeAdapter] createOrder placing order on exchange: symbol=${symbol} type=${type} side=${side} amount=${amountStr} price=${priceArg === undefined ? 'market' : priceArg} params=${JSON.stringify(params)}`);
-            if (side === 'buy') {
-                console.debug(`[ExchangeAdapter] buy is excuted`);
-
-                 placed = await this.client.createOrder(symbol, type, side, Number(amountStr), priceArg, params);
+            // Keep your 0.96 logic for sells, but apply it BEFORE precision
+            if (side !== 'buy') {
+                tradeAmount = tradeAmount * 0.96;
+                console.debug(`[ExchangeAdapter] createOrder applying 0.96 factor for sell: base=${adjustedAmount} -> tradeAmount=${tradeAmount}`);
             }
-            else {
-                // const placed = await this.client.createOrder(symbol, type, side, Number(amountStr), priceArg, params);
-                 placed = await this.client.createOrder(symbol, type, side, Number(amountStr) * 0.96 , type === 'market' ? undefined : price, params);
 
-                console.debug(`[ExchangeAdapter] sell is excuted`);
+            // Quantize the final trade amount
+            const finalAmountStr = this.client.amountToPrecision(symbol, tradeAmount);
+            const finalAmountNum = Number(finalAmountStr);
 
+            console.debug(
+                `[ExchangeAdapter] createOrder placing order on exchange: symbol=${symbol} type=${type} side=${side} amount=${finalAmountStr} price=${priceArg === undefined ? 'market' : priceArg} params=${JSON.stringify(params)}`
+            );
 
-            }
-            console.debug(`[ExchangeAdapter] createOrder placed order id=${placed && placed.id ? placed.id : 'unknown'} result=${JSON.stringify(placed)}`);
+            const placed = await this.client.createOrder(
+                symbol,
+                type,
+                side,
+                finalAmountNum,
+                priceArg,
+                params
+            );
+
+            console.debug(
+                `[ExchangeAdapter] createOrder placed order id=${placed && placed.id ? placed.id : 'unknown'} result=${JSON.stringify(placed)}`
+            );
             return placed;
         } catch (err) {
-            // If exchange rejects due to precision/minNotional, include market meta to help debugging
-            console.debug(`[ExchangeAdapter] createOrder exchange error: ${err && err.message ? err.message : err}. marketMeta precision=${market && market.precision ? JSON.stringify(market.precision) : 'none'} limits=${market && market.limits ? JSON.stringify(market.limits) : 'none'}`);
-            const e = new Error(`Exchange createOrder failed: ${err && err.message ? err.message : err}. marketMeta=${JSON.stringify({ precision: market && market.precision, limits: market && market.limits })}`);
+            console.debug(
+                `[ExchangeAdapter] createOrder exchange error: ${err && err.message ? err.message : err
+                }. marketMeta precision=${market && market.precision ? JSON.stringify(market.precision) : 'none'} limits=${market && market.limits ? JSON.stringify(market.limits) : 'none'
+                }`
+            );
+            const e = new Error(
+                `Exchange createOrder failed: ${err && err.message ? err.message : err
+                }. marketMeta=${JSON.stringify({ precision: market && market.precision, limits: market && market.limits })}`
+            );
             e.original = err;
             throw e;
         }
+
     }
 
     async fetchOHLCV(symbol, timeframe = '1h', since = undefined, limit = 100) {
