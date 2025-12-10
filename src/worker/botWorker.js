@@ -231,7 +231,7 @@ class BotWorker {
                         reason: exitDecision.reason,
                         createdAt: new Date()
                     });
-                    bot.entries=[];
+                    // bot.entries=[];
                 } catch (err) {
                     console.error('Failed to persist sell order', err);
                     // continue — order was placed on exchange; persistence failure should be retried/inspected separately
@@ -416,10 +416,13 @@ class BotWorker {
             user.api_secret = firstKey.api_secret;
 
 
-
+            const lastOrder = await botOrders.findOne(
+                { botId },
+                { sort: { createdAt: -1 } }
+            );
 
             // If we have an open position and a valid user, attempt to close it on exchange
-            if (totalAmount > 0 && user) {
+            if (totalAmount > 0 && user && (!lastOrder || lastOrder.side !== 'sell')) {
                 const adapter = new ExchangeAdapter(user.api_key || user.apiKey, user.api_secret || user.apiSecret, user.exchange || 'bybit');
                 const exchangeKey = adapter.exchangeKey;
 
