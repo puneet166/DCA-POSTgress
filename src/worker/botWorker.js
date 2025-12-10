@@ -231,6 +231,7 @@ class BotWorker {
                         reason: exitDecision.reason,
                         createdAt: new Date()
                     });
+                    bot.entries=[];
                 } catch (err) {
                     console.error('Failed to persist sell order', err);
                     // continue — order was placed on exchange; persistence failure should be retried/inspected separately
