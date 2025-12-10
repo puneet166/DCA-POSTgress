@@ -416,10 +416,8 @@ class BotWorker {
             user.api_secret = firstKey.api_secret;
 
 
-            const lastOrder = await botOrders.findOne(
-                { botId },
-                { sort: { createdAt: -1 } }
-            );
+          
+            const lastOrder = await botOrders.getLastOrderByBotId(botId);
 
             // If we have an open position and a valid user, attempt to close it on exchange
             if (totalAmount > 0 && user && (!lastOrder || lastOrder.side !== 'sell')) {
