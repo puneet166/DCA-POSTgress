@@ -6,7 +6,7 @@ const { Router } = require('express');
 const db = require('../lib/pgClient');
 const botsModel = require('../models/bots');
 const authenticateUser = require('../middleware/authProxy');
-const usersModel = require('../models/users');
+// const usersModel = require('../models/users');
 const ExchangeAdapter = require('../lib/exchangeAdapter');
 
 function round(n, decimals = 8) {
@@ -124,10 +124,11 @@ function PnlController() {
       /* ⬇⬇⬇ ADD FROM HERE ⬇⬇⬇ */
 
       // fetch user (for exchange keys)
-      const user = await usersModel.findById(bot.user_id);
-      if (!user) {
-        return res.status(404).json({ error: 'user not found' });
-      }
+      // const user = await usersModel.findById(bot.user_id);
+      // if (!user) {
+      //   return res.status(404).json({ error: 'user not found' });
+      // }
+      const user = req.user;
 
       // create exchange adapter
       const adapter = new ExchangeAdapter(
