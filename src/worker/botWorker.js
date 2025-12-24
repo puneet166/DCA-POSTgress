@@ -70,7 +70,7 @@ class BotWorker {
      * decides exit or buy, places order, persists order + entry, schedules next tick)
      */
     async tickBot(botId) {
-        await logBot(botId, 'tick_started');
+        // await logBot(botId, 'tick_started');
 
         // Ensure DB available (initDb already called in handle)
         const lockKey = `bot-lock:${botId}`;
@@ -80,7 +80,7 @@ class BotWorker {
 
         if (!token) {
             // Could not obtain lock — another worker is processing this bot.
-            await logBot(botId, 'lock_not_acquired', 'warn');
+            // await logBot(botId, 'lock_not_acquired', 'warn');
 
             try {
                 const currentBot = await botsModel.findById(botId);
@@ -95,7 +95,7 @@ class BotWorker {
             return;
         }
 
-        await logBot(botId, 'lock_acquired', 'info');
+        // await logBot(botId, 'lock_acquired', 'info');
 
         // We acquired the lock. Ensure release in finally.
         let renewedInterval = null;
@@ -169,7 +169,7 @@ class BotWorker {
             let ticker;
             try {
                 ticker = await adapter.fetchTicker(bot.pair);
-                await logBot(botId, 'ticker_fetched', 'info', { price: ticker && ticker.last ? ticker.last : null });
+                // await logBot(botId, 'ticker_fetched', 'info', { price: ticker && ticker.last ? ticker.last : null });
             } catch (err) {
                 console.error(`[Worker] fetchTicker failed for bot ${botId} ${bot.pair}`, err && (err.message || err));
                 await logBot(botId, 'exchange_error', 'error', {
@@ -184,7 +184,7 @@ class BotWorker {
             // 1) Check exits first (TP/SL)
             const exitDecision = await checkExit(bot, ticker);
             console.log(`checkExit for bot ${botId}`);
-            await logBot(botId, 'exit_decision', 'info', exitDecision);
+            // await logBot(botId, 'exit_decision', 'info', exitDecision);
 
             if (exitDecision.placeOrder) {
                 const gotTokenForSell = await limiter.acquire(exchangeKey, 1, Number(process.env.RATE_LIMIT_ACQUIRE_MS || 5000));
@@ -255,7 +255,7 @@ class BotWorker {
 
             // 2) Evaluate buy
             const buyDecision = await runDcaStep(bot, ticker, metrics);
-            await logBot(botId, 'buy_decision', 'info', buyDecision);
+            // await logBot(botId, 'buy_decision', 'info', buyDecision);
 
             if (buyDecision.placeOrder) {
                 const gotTokenForBuy = await limiter.acquire(exchangeKey, 1, Number(process.env.RATE_LIMIT_ACQUIRE_MS || 5000));
@@ -326,7 +326,7 @@ class BotWorker {
             try {
                 const latestBot = await botsModel.findById(botId);
                 if (latestBot && latestBot.status === 'running') {
-                    await logBot(botId, 'next_tick_scheduled');
+                    // await logBot(botId, 'next_tick_scheduled');
                     setTimeout(
                         () => enqueueBotTick(botId).catch(console.error),
                         (process.env.BOT_TICK_MS ? Number(process.env.BOT_TICK_MS) : 60_000)
