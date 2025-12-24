@@ -8,6 +8,7 @@ const botsModel = require('../models/bots');
 const authenticateUser = require('../middleware/authProxy');
 // const usersModel = require('../models/users');
 const ExchangeAdapter = require('../lib/exchangeAdapter');
+const getUserExchangeKeys = require("../services/getExchangeKeys") // this function will call where use of apikey and secret
 
 function round(n, decimals = 8) {
   if (typeof n !== 'number' || !isFinite(n)) return 0;
@@ -128,7 +129,34 @@ function PnlController() {
       // if (!user) {
       //   return res.status(404).json({ error: 'user not found' });
       // }
-      const user = req.user;
+      const user = await getUserExchangeKeys(
+        bot.user_id || bot.userId || bot.user,                 // user param
+        bot.config?.exchangeName || bot.config?.exchange_name // exchange param directly
+      );
+      if (!user) {
+        console.warn(`User ${bot.user_id || bot.userId} not found for bot ${botId}`);
+        return;
+      }
+      const firstKey = user.keys[0];
+      // Individual field checks with return
+      if (!firstKey.exchange) {
+        console.warn(`exchange missing for user ${bot.user_id || bot.userId}`);
+        return;
+      }
+
+      if (!firstKey.api_key) {
+        console.warn(`api_key missing for user ${bot.user_id || bot.userId}`);
+        return;
+      }
+
+      if (!firstKey.api_secret) {
+        console.warn(`api_secret missing for user ${bot.user_id || bot.userId}`);
+        return;
+      }
+      // Merge values onto user so you can use user.exchange, user.api_key, user.api_secret
+      user.exchange = firstKey.exchange;
+      user.api_key = firstKey.api_key;
+      user.api_secret = firstKey.api_secret;
 
       // create exchange adapter
       const adapter = new ExchangeAdapter(
